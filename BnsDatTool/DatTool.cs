@@ -4,6 +4,9 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using BnsDatTool.lib;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace BnsDatTool
 {
@@ -14,6 +17,13 @@ namespace BnsDatTool
 
         OpenFileDialog OfileBin = new OpenFileDialog();
         FolderBrowserDialog OfolderBin = new FolderBrowserDialog();
+
+        [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool WritePrivateProfileString(string lpAppName, string lpKeyName, string lpString, string lpFileName);
+
+        [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int GetPrivateProfileString(string lpAppName, string lpKeyName, string lpDefault, StringBuilder lpReturnedString, int nSize, string lpFileName);
+
 
         private string BackPath = "backup\\";
         private string RepackPath;
@@ -30,7 +40,10 @@ namespace BnsDatTool
         public BackgroundWorker multiworker;
 
         public bool DatIs64 = false;
-
+        public bool ReloadIs64 = false;
+        public bool ReloadIs32 = false;
+        public bool FirstLoad = true;
+        public string iniPath = Application.StartupPath + @"\BnsToolConfig.ini";
         public enum FILEWORKER_TYPE
         {
             NORMAL,
@@ -44,8 +57,128 @@ namespace BnsDatTool
 
         private void BnsDatTool_Load(object sender, EventArgs e)
         {
+            this.AllowDrop = true;
+
             _writer = new StrWriter(richOut);
             Console.SetOut(_writer);
+
+            // StringBuilder LastPath = new StringBuilder();
+            //GetPrivateProfileString("Lastpath", "txbDatFile", null, LastPath, 65534, iniPath);
+            string path;
+
+            if (File.Exists(iniPath))
+            {
+                string ReadText = System.IO.File.ReadAllText(iniPath, Encoding.Default);
+
+                int DamageStart = ReadText.IndexOf("txbDatFile");
+
+                if (DamageStart > 0)
+                {
+                    DamageStart = ReadText.IndexOf("=", DamageStart) + 1;
+                    int DamageEnd = ReadText.IndexOf("\r\n", DamageStart);
+                    path = ReadText.Substring(DamageStart, (DamageEnd - DamageStart));
+                }
+                else
+                    path = Application.StartupPath;
+            }
+            else
+                path = Application.StartupPath;
+
+
+            //   System.IO.File.WriteAllText(OutPath + "\\client.config2.xml", OutText, System.Text.Encoding.UTF8);
+
+            Application.DoEvents();
+
+            string path32, path64;
+
+            List<string> dirs = new List<string>(Directory.EnumerateDirectories(path));
+
+            try
+            {
+                StringBuilder CB_Checked = new StringBuilder();
+
+                GetPrivateProfileString("CB", "cB_output", "T", CB_Checked, 255, iniPath);
+                cB_output.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "Cb_back", "T", CB_Checked, 255, iniPath);
+                Cb_back.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_AutoChangeDPS", "T", CB_Checked, 255, iniPath);
+                CB_AutoChangeDPS.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_AverageScore", "T", CB_Checked, 255, iniPath);
+                CB_AverageScore.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_OpenBox", "T", CB_Checked, 255, iniPath);
+                CB_OpenBox.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_SkillChange", "T", CB_Checked, 255, iniPath);
+                CB_SkillChange.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_ChangeItem", "T", CB_Checked, 255, iniPath);
+                CB_ChangeItem.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_AutoReCompress", "T", CB_Checked, 255, iniPath);
+                CB_AutoReCompress.Checked = (CB_Checked.ToString() == "T") ? true : false;
+
+                GetPrivateProfileString("CB", "CB_AutoClose", "T", CB_Checked, 255, iniPath);
+                CB_AutoClose.Checked = (CB_Checked.ToString() == "T") ? true : false;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("出問題拉RRR" + ex.ToString());
+            }
+            
+            foreach (var dir in dirs)
+            {
+                if (dir.IndexOf("xml64.dat.files") > 0)
+                {
+                    path64 = path + "\\xml64.dat";
+                    if (!File.Exists(path64))
+                        break;
+                    OfileDat.FileName = path64;
+                    txbDatFile.Text = OfileDat.FileName;
+                    FulldatPath = OfileDat.FileName;
+                    DatfileName = OfileDat.SafeFileName;
+
+                    if (FulldatPath.Contains("64"))
+                        DatIs64 = true;
+                    else
+                        DatIs64 = false;
+
+                    if (cB_output.Checked == true)
+                    {
+                        RepackPath = Path.GetDirectoryName(FulldatPath) + @"\";//get working dir
+                        OutPath = FulldatPath + ".files"; //get full file path and add .files
+                        txbRpFolder.Text = OutPath;
+                    }
+                    ReloadIs64 = true;
+                }
+                else if (dir.IndexOf("xml.dat.files") > 0)
+                {
+                    path32 = path + "\\xml.dat";
+                    if (!File.Exists(path32))
+                        break;
+                    OfileDat.FileName = path32;
+                    txbDatFile.Text = OfileDat.FileName;
+                    FulldatPath = OfileDat.FileName;
+                    DatfileName = OfileDat.SafeFileName;
+
+                    if (FulldatPath.Contains("64"))
+                        DatIs64 = true;
+                    else
+                        DatIs64 = false;
+
+                    if (cB_output.Checked == true)
+                    {
+                        RepackPath = Path.GetDirectoryName(FulldatPath) + @"\";//get working dir
+                        OutPath = FulldatPath + ".files"; //get full file path and add .files
+                        txbRpFolder.Text = OutPath;
+                    }
+                    ReloadIs32 = true;
+                }
+            }
+
         }
 
         private void RunWithWorker(DoWorkEventHandler doWork)
@@ -68,6 +201,7 @@ namespace BnsDatTool
         {
             if (OfileDat.ShowDialog() != DialogResult.OK)
                 return;
+
             // Check if 64bit or 32bit
 
             txbDatFile.Text = OfileDat.FileName;
@@ -85,6 +219,8 @@ namespace BnsDatTool
                 OutPath = FulldatPath + ".files"; //get full file path and add .files
                 txbRpFolder.Text = OutPath;
             }
+
+
         }
 
         private void bnSearchOut_Click(object sender, EventArgs e)
@@ -128,12 +264,13 @@ namespace BnsDatTool
 
             if (multiworker != null && multiworker.IsBusy)
                 multiworker.CancelAsync();
-
             try
             {
                 if (File.Exists(FulldatPath))
                 {
                     Extractor(FulldatPath);
+
+                    WritePrivateProfileString("Lastpath", "txbDatFile", FulldatPath.Substring(0, FulldatPath.LastIndexOf("\\")), iniPath);
                 }
                 else
                 {
@@ -144,6 +281,44 @@ namespace BnsDatTool
             {
                 MessageBox.Show(ex.ToString());
             }
+
+            if (CB_AutoChangeDPS.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                AutoDPS(sender, e);
+            }
+            if (CB_AverageScore.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                AverageScore(sender, e);
+            }
+            if (CB_ChangeItem.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                ChangeItem(sender, e);
+            }
+            if (CB_OpenBox.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                OpenBox(sender, e);
+            }
+            if (CB_SkillChange.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                SkillChange(sender, e);
+            }
+            if (CB_AutoReCompress.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                btnRepack_Click(sender, e);
+            }
+            Application.DoEvents();
         }
 
 
@@ -158,6 +333,13 @@ namespace BnsDatTool
                 BackUpManager(FulldatPath, RepackPath, DatfileName, DatIs64, FILEWORKER_TYPE.NORMAL);
             else
                 CompileManager(OutPath, DatIs64);
+            if (CB_AutoClose.Checked)
+            {
+                while (multiworker.IsBusy)
+                    Application.DoEvents();
+                this.Close();
+                Environment.Exit(Environment.ExitCode);
+            }
 
         }
 
@@ -431,6 +613,139 @@ namespace BnsDatTool
                 else
                     CompileManager(DatPathExtractTranslate, tIs64);
             }
+        }
+
+        private void AutoDPS(object sender, EventArgs e)
+        {
+            string ReadText = System.IO.File.ReadAllText(OutPath + "\\client.config2.xml");
+            int DamageStart = ReadText.IndexOf("show-effect-only-info");
+            int DamageEnd = ReadText.IndexOf("group", DamageStart);
+            string temp1 = ReadText.Substring(DamageStart, DamageEnd - DamageStart);
+            temp1 = temp1.Replace("\"n", "\"y");
+            temp1 = temp1.Replace("\"1", "\"2");
+            temp1 = temp1.Replace("\"0", "\"2");
+            string OutText = ReadText.Substring(0, DamageStart) + temp1 + ReadText.Substring(DamageStart + (DamageEnd - DamageStart));// + ReadText.Substring(DamageEnd - DamageValue);
+            System.IO.File.WriteAllText(OutPath + "\\client.config2.xml", OutText, System.Text.Encoding.UTF8);
+
+            Application.DoEvents();
+
+        }
+        private void AverageScore(object sender, EventArgs e)
+        {
+            string ReadText = System.IO.File.ReadAllText(OutPath + "\\client.config2.xml");
+            int DamageStart = ReadText.IndexOf("use-team-average-score");
+            int DamageEnd = ReadText.IndexOf("group", DamageStart);
+            string temp1 = ReadText.Substring(DamageStart, DamageEnd - DamageStart);
+            temp1 = temp1.Replace("\"false", "\"true");
+
+            string OutText = ReadText.Substring(0, DamageStart) + temp1 + ReadText.Substring(DamageStart + (DamageEnd - DamageStart));// + ReadText.Substring(DamageEnd - DamageValue);
+            System.IO.File.WriteAllText(OutPath + "\\client.config2.xml", OutText, System.Text.Encoding.UTF8);
+
+            Application.DoEvents();
+        }
+        private void ChangeItem(object sender, EventArgs e)
+        {
+            string ReadText = System.IO.File.ReadAllText(OutPath + "\\client.config2.xml");
+            int DamageStart = ReadText.IndexOf("item-transform-progressing-particle-duration");
+            int DamageEnd = ReadText.IndexOf(">", DamageStart);
+            //string temp1 = ReadText.Substring(DamageStart, DamageEnd - DamageStart);
+            DamageStart = ReadText.IndexOf("=\"", DamageStart) + 2;
+            DamageEnd = ReadText.LastIndexOf("\"", DamageEnd);
+            //temp1 = ReadText.Substring(DamageStart, DamageEnd - DamageStart);
+
+            string OutText = ReadText.Substring(0, DamageStart) + "0.0" + ReadText.Substring(DamageStart + (DamageEnd - DamageStart));// + ReadText.Substring(DamageEnd - DamageValue);
+            System.IO.File.WriteAllText(OutPath + "\\client.config2.xml", OutText, System.Text.Encoding.UTF8);
+
+            Application.DoEvents();
+        }
+        private void OpenBox(object sender, EventArgs e)
+        {
+            string ReadText = System.IO.File.ReadAllText(OutPath + "\\client.config2.xml");
+            int DamageStart = ReadText.IndexOf("self-restraint-gauge-time");
+            int DamageEnd = ReadText.IndexOf(">", DamageStart);
+            //string temp1 = ReadText.Substring(DamageStart, DamageEnd - DamageStart);
+            DamageStart = ReadText.IndexOf("=\"", DamageStart) + 2;
+            DamageEnd = ReadText.LastIndexOf("\"", DamageEnd);
+            //temp1 = temp1.Replace("\"2.0", "\"0.0");
+
+            string OutText = ReadText.Substring(0, DamageStart) + "0.000000" + ReadText.Substring(DamageStart + (DamageEnd - DamageStart));// + ReadText.Substring(DamageEnd - DamageValue);
+            System.IO.File.WriteAllText(OutPath + "\\client.config2.xml", OutText, System.Text.Encoding.UTF8);
+
+            Application.DoEvents();
+        }
+        private void SkillChange(object sender, EventArgs e)
+        {
+            string ReadText = System.IO.File.ReadAllText(OutPath + "\\client.config2.xml");
+            int DamageStart = ReadText.IndexOf("train-complete-delay-time");
+            int DamageEnd = ReadText.IndexOf(">", DamageStart);
+           // string temp1 = ReadText.Substring(DamageStart, DamageEnd - DamageStart);
+            DamageStart = ReadText.IndexOf("=\"", DamageStart) + 2;
+            DamageEnd = ReadText.LastIndexOf("\"", DamageEnd);
+           // temp1 = temp1.Replace("\"1.5", "\"0.2");
+
+            string OutText = ReadText.Substring(0, DamageStart) + "0.200000" + ReadText.Substring(DamageStart + (DamageEnd - DamageStart));// + ReadText.Substring(DamageEnd - DamageValue);
+            System.IO.File.WriteAllText(OutPath + "\\client.config2.xml", OutText, System.Text.Encoding.UTF8);
+
+            Application.DoEvents();
+        }
+        string DragFileName = string.Empty; //宣告一個存取拖曳檔案的路徑
+
+        private void BnsDatTool_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent("FileNameW"))
+            {
+                string[] data = (e.Data.GetData("FileNameW") as string[]);
+                DragFileName = data[0];
+                e.Effect = DragDropEffects.All;
+            }
+        }
+
+        private void BnsDatTool_DragDrop(object sender, DragEventArgs e)
+        {
+            try
+            {
+                //拖曳檔案是否存在
+                if (File.Exists(DragFileName))
+                {
+                    // Check if 64bit or 32bit
+                    OfileDat.FileName = DragFileName;
+                    txbDatFile.Text = OfileDat.FileName;
+                    FulldatPath = OfileDat.FileName;
+                    DatfileName = OfileDat.SafeFileName;
+
+                    if (FulldatPath.Contains("64"))
+                        DatIs64 = true;
+                    else
+                        DatIs64 = false;
+
+                    if (cB_output.Checked == true)
+                    {
+                        RepackPath = Path.GetDirectoryName(FulldatPath) + @"\";//get working dir
+                        OutPath = FulldatPath + ".files"; //get full file path and add .files
+                        txbRpFolder.Text = OutPath;
+                    }
+                }
+
+                Application.DoEvents();
+                BntStart_Click(sender, e);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("出問題拉RRR" + ex.ToString());
+            }
+        }
+
+        private void BnsDatTool_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            WritePrivateProfileString("CB", "cB_output", cB_output.Checked == true ? "T":"F", iniPath);
+            WritePrivateProfileString("CB", "Cb_back", Cb_back.Checked == true ? "T" : "F", iniPath);
+            WritePrivateProfileString("CB", "CB_AutoChangeDPS", CB_AutoChangeDPS.Checked == true ? "T" : "F", iniPath);
+            WritePrivateProfileString("CB", "CB_AverageScore", CB_AverageScore.Checked == true ? "T" : "F", iniPath);
+            WritePrivateProfileString("CB", "CB_OpenBox", CB_OpenBox.Checked == true ? "T" : "F", iniPath);            
+            WritePrivateProfileString("CB", "CB_SkillChange", CB_SkillChange.Checked == true ? "T" : "F", iniPath);
+            WritePrivateProfileString("CB", "CB_ChangeItem", CB_ChangeItem.Checked == true ? "T" : "F", iniPath);
+            WritePrivateProfileString("CB", "CB_AutoReCompress", CB_AutoReCompress.Checked == true ? "T" : "F", iniPath);
+            WritePrivateProfileString("CB", "CB_AutoClose", CB_AutoClose.Checked == true ? "T" : "F", iniPath);
         }
     }
 }
